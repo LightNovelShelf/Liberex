@@ -1,5 +1,6 @@
 using Liberex.BackgroundServices;
 using Liberex.Models.Context;
+using Liberex.Services;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,7 +18,8 @@ builder.Services.AddDbContext<LiberexContext>(options =>
     options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}");
 });
 
-builder.Services.AddHostedService<FileScanService>();
+builder.Services.AddHostedService<FileMonitorService>();
+builder.Services.AddSingleton<FileScanService>();
 
 var app = builder.Build();
 

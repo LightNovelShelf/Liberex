@@ -7,6 +7,7 @@ namespace Liberex.Models.Context;
 public class LiberexContext : DbContext
 {
     public DbSet<Library> Librarys { get; set; }
+    public DbSet<Book> Books { get; set; }
 
     public LiberexContext(DbContextOptions<LiberexContext> options) : base(options)
     {
@@ -14,6 +15,8 @@ public class LiberexContext : DbContext
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
+        base.OnConfiguring(optionsBuilder);
+        optionsBuilder.UseSnakeCaseNamingConvention();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -28,7 +31,32 @@ public class Library
 
     public string LibraryId { get; set; }
 
-    public string Path { get; set; }
+    public string FullPath { get; set; }
 
-    public DateTime AddTime { get; set; }
+    public DateTime AddTime { get; set; } = DateTime.Now;
+
+    public DateTime ModifyTime { get; set; } = DateTime.Now;
+}
+
+public class Book
+{
+    public long Id { get; set; }
+
+    public string Hash { get; set; }
+
+    public string FullPath { get; set; }
+
+    public DateTime AddTime { get; set; } = DateTime.Now;
+
+    public DateTime ModifyTime { get; set; } = DateTime.Now;
+
+    public string Name { get; set; }
+
+    public string Author { get; set; }
+
+    public string Summary { get; set; }
+
+    public string BookId { get; set; }
+
+    public string SeriesId { get; set; }
 }
