@@ -8,6 +8,7 @@ public class LiberexContext : DbContext
 {
     public DbSet<Library> Librarys { get; set; }
     public DbSet<Book> Books { get; set; }
+    public DbSet<Series> Series { get; set; }
 
     public LiberexContext(DbContextOptions<LiberexContext> options) : base(options)
     {
@@ -35,7 +36,22 @@ public class Library
 
     public DateTime AddTime { get; set; } = DateTime.Now;
 
-    public DateTime ModifyTime { get; set; } = DateTime.Now;
+    public DateTime LastUpdateTime { get; set; } = DateTime.Now;
+}
+
+public class Series
+{
+    public long Id { get; set; }
+
+    public string SeriesId { get; set; }
+
+    public string FullPath { get; set; }
+
+    public string LibraryId { get; set; }
+
+    public DateTime AddTime { get; set; } = DateTime.Now;
+
+    public DateTime LastUpdateTime { get; set; } = DateTime.Now;
 }
 
 public class Book
@@ -45,6 +61,8 @@ public class Book
     public string Hash { get; set; }
 
     public string FullPath { get; set; }
+
+    public long FileSize { get; set; }
 
     public DateTime AddTime { get; set; } = DateTime.Now;
 
@@ -59,4 +77,6 @@ public class Book
     public string BookId { get; set; }
 
     public string SeriesId { get; set; }
+
+    public string LibraryId { get; set; }
 }

@@ -1,7 +1,5 @@
 ﻿using Liberex.Internal;
 using Liberex.Models.Context;
-using Microsoft.EntityFrameworkCore;
-using System.Diagnostics;
 using Wuyu.Epub;
 
 namespace Liberex.BackgroundServices;
@@ -29,34 +27,28 @@ public class FileMonitorService : BackgroundService
         {
             _logger.LogInformation($"Database has Created");
 
-            // to something
             var library = _configuration.GetSection("Library").Get<string[]>()!;
-            await context.Librarys.AddAsync(new Library { FullPath = library[0], LibraryId = CorrelationIdGenerator.GetNextId() });
+            await context.Librarys.AddAsync(new Library { FullPath = library[0], LibraryId = CorrelationIdGenerator.GetNextId() }, stoppingToken);
 
-            var stopWatch = new Stopwatch();
             foreach (var item in Directory.EnumerateFiles(library[0], "*.epub"))
             {
-                stopWatch.Restart();
                 using var fileStream = new FileStream(item, FileMode.Open);
                 var hash = await Utils.Hash.ComputeMD5Async(fileStream, stoppingToken);
                 fileStream.Seek(0, SeekOrigin.Begin);
-                Console.WriteLine(stopWatch.ElapsedMilliseconds);
-                var epub = EpubBook.ReadEpub(fileStream, new MemoryStream());
+                using var epub = await EpubBook.ReadEpubAsync(fileStream);
 
-                await context.Books.AddAsync(new Book
+                var book = new Book
                 {
-                    BookId = CorrelationIdGenerator.GetNextId(),
+                    BookId = "0HMUA15QG81O6",
                     Name = epub.Title,
                     Author = epub.Author,
                     FullPath = item,
                     Hash = hash
-                });
+                };
+                await context.Books.AddAsync(book, stoppingToken);
+                await context.SaveChangesAsync(stoppingToken);
 
-                Console.WriteLine(stopWatch.ElapsedMilliseconds);
-                // 需要改造一个完全只读，现在太耗性能
-                epub.Dispose();
-
-                _logger.LogInformation($"EPUB has be add: {Path.GetFileName(item)} ({stopWatch.ElapsedMilliseconds})");
+                _logger.LogInformation($"EPUB has be add: {Path.GetFileName(item)} ({book.BookId})");
             }
 
             await context.SaveChangesAsync(stoppingToken);
