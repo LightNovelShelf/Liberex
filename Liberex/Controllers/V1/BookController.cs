@@ -30,7 +30,6 @@ public class BookController : ControllerBase
     {
         if (value is (EpubBook epub, SemaphoreSlim _))
         {
-            _logger.LogInformation($"EPUB has be Dispose {epub.Title}");
             epub.Dispose();
         }
     }
@@ -78,7 +77,7 @@ public class BookController : ControllerBase
             }
 
             var extension = Path.GetExtension(path);
-            var stream = entry.Open();
+            using var stream = entry.Open();
 
             Response.ContentLength = entry.Length;
             Response.ContentType = ContentTypeMappings[extension] ?? "application/octet-stream";
@@ -87,7 +86,7 @@ public class BookController : ControllerBase
             int read;
             while ((read = await stream.ReadAsync(buffer)) != 0)
             {
-                await Response.Body.WriteAsync(buffer.AsMemory(0, read));
+                await Response.BodyWriter.WriteAsync(buffer.AsMemory(0, read));
             }
         }
         finally

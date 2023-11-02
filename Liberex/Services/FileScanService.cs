@@ -10,7 +10,8 @@ public class FileScanService
     private readonly ILogger<FileScanService> _logger;
     private readonly LiberexContext _context;
 
-    private static readonly SemaphoreSlim SLIM = new(1, 1);
+    private static int s_scaning = 0;
+    private static int s_checking = 0;
 
     public FileScanService(ILogger<FileScanService> logger, LiberexContext context)
     {
@@ -18,40 +19,53 @@ public class FileScanService
         _context = context;
     }
 
-    public async ValueTask ScanByLibraryAsync(string id, CancellationToken cancellationToken = default)
+    public async ValueTask ScanAsync(string libraryId, string seriesId, CancellationToken cancellationToken = default)
     {
-        await SLIM.WaitAsync(cancellationToken);
+        if (0 != Interlocked.Exchange(ref s_scaning, 1))
+        {
+            _logger.LogInformation("Scan has already start");
+            return;
+        }
+
         try
         {
-            var library = await _context.Librarys.FirstOrDefaultAsync(x => x.LibraryId == id, cancellationToken)
-                ?? throw new ScanException("no this library");
+            _logger.LogInformation("Scan has be start");
 
-            // todo
+            if (!string.IsNullOrWhiteSpace(libraryId))
+            {
+                await ScanByLibraryAsync(libraryId, cancellationToken);
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(seriesId))
+            {
+                await ScanBySeriesAsync(seriesId, cancellationToken);
+                return;
+            }
         }
         finally
         {
-            SLIM.Release();
+            _logger.LogInformation("Scan has be end");
+            Interlocked.Exchange(ref s_scaning, 0);
         }
     }
 
-    public async ValueTask ScanBySeriesAsync(string id, CancellationToken cancellationToken = default)
+    private async ValueTask ScanByLibraryAsync(string id, CancellationToken cancellationToken = default)
     {
-        await SLIM.WaitAsync(cancellationToken);
-        try
-        {
-            var series = await _context.Series.FirstOrDefaultAsync(x => x.SeriesId == id, cancellationToken)
-                ?? throw new ScanException("no this series");
+        var library = await _context.Librarys.FirstOrDefaultAsync(x => x.LibraryId == id, cancellationToken)
+                ?? throw new ScanException("no this library");
+    }
 
-            foreach (var item in Directory.EnumerateFiles(series.FullPath, "*.epub", SearchOption.AllDirectories))
-            {
-                await AddBookAsync(item, series.LibraryId, series.SeriesId, cancellationToken);
-            }
-            // todo 还需要标记不存在的项目
-        }
-        finally
+    private async ValueTask ScanBySeriesAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var series = await _context.Series.FirstOrDefaultAsync(x => x.SeriesId == id, cancellationToken)
+            ?? throw new ScanException("no this series");
+
+        foreach (var item in Directory.EnumerateFiles(series.FullPath, "*.epub", SearchOption.AllDirectories))
         {
-            SLIM.Release();
+            await AddBookAsync(item, series.LibraryId, series.SeriesId, cancellationToken);
         }
+        // todo 还需要标记不存在的项目
     }
 
     public async ValueTask AddBookAsync(string fullPath, string libraryId, string seriesId, CancellationToken cancellationToken = default)
@@ -64,12 +78,15 @@ public class FileScanService
         var book = new Book
         {
             BookId = CorrelationIdGenerator.GetNextId(),
-            Name = epub.Title,
-            Author = epub.Author,
             FullPath = fullPath,
             Hash = hash,
             SeriesId = seriesId,
-            LibraryId = libraryId
+            LibraryId = libraryId,
+
+            // EPUB相关信息
+            Title = epub.Title,
+            Author = epub.Author,
+            OEBPS = epub.OEBPS
         };
         // todo 可能已经存在
         await _context.Books.AddAsync(book, cancellationToken);

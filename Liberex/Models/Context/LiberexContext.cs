@@ -68,15 +68,18 @@ public class Book
 
     public DateTime ModifyTime { get; set; } = DateTime.Now;
 
-    public string Name { get; set; }
-
-    public string Author { get; set; }
-
-    public string Summary { get; set; }
-
     public string BookId { get; set; }
 
     public string SeriesId { get; set; }
 
     public string LibraryId { get; set; }
+
+
+    public string Title { get; set; }
+
+    public string Author { get; set; }
+
+    public string Summary { get; set; }
+
+    public string OEBPS { get; set; }
 }

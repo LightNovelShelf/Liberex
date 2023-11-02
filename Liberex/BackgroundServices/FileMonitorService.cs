@@ -40,7 +40,7 @@ public class FileMonitorService : BackgroundService
                 var book = new Book
                 {
                     BookId = "0HMUA15QG81O6",
-                    Name = epub.Title,
+                    Title = epub.Title,
                     Author = epub.Author,
                     FullPath = item,
                     Hash = hash
