@@ -27,7 +27,7 @@ public class FileMonitorService : BackgroundService
     {
         // 第一次启动时，初始化数据库
         using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetService<LiberexContext>()!;
+        var context = scope.ServiceProvider.GetService<LiberexContext>();
         
         if (_first)
         {
@@ -36,18 +36,20 @@ public class FileMonitorService : BackgroundService
             _first = false;
         }
 
-        var librarySetting = _configuration.GetSection("Library").Get<string[]>()!;
-
-        foreach (var item in librarySetting)
+        var librarySetting = _configuration.GetSection("Library").Get<string[]>();
+        if (librarySetting is not null)
         {
-            var library = await context.Librarys.FirstOrDefaultAsync(x => x.FullPath == item, cancellationToken);
-            if (library is null)
+            foreach (var item in librarySetting)
             {
-                library = new Library { FullPath = item, Id = CorrelationIdGenerator.GetNextId() };
-                await context.Librarys.AddAsync(library, cancellationToken);
-                await context.SaveChangesAsync(cancellationToken);
+                var library = await context.Librarys.FirstOrDefaultAsync(x => x.FullPath == item, cancellationToken);
+                if (library is null)
+                {
+                    library = new Library { FullPath = item, Id = CorrelationIdGenerator.GetNextId() };
+                    await context.Librarys.AddAsync(library, cancellationToken);
+                    await context.SaveChangesAsync(cancellationToken);
+                }
+                await _fileScanService.ScanAsync(library.Id, null, cancellationToken);
             }
-            await _fileScanService.ScanAsync(library.Id, null, cancellationToken);
         }
     }
 

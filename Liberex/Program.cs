@@ -24,7 +24,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var dataDirectory = builder.Configuration["DataDirectory"] ?? "./";
-
+if (!Directory.Exists(dataDirectory)) Directory.CreateDirectory(dataDirectory);
 builder.Services.AddDbContext<LiberexContext>(options =>
 {
     options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}");

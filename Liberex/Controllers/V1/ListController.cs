@@ -23,6 +23,7 @@ public class ListController : ControllerBase
     [HttpGet("[action]/{key}")]
     public async ValueTask<MessageModel> BooksAsync(string key, int page = 1, int size = 20)
     {
+        if (size <= 0 || size > 30) size = 20;
         // TODO 后续只能传ID
         var series = await _context.Series.SingleOrDefaultAsync(x => x.Id == key || x.FullPath == key);
         series.Books = await _context.Books.OrderBy(x => x.Id)
@@ -39,6 +40,7 @@ public class ListController : ControllerBase
     [HttpGet("[action]/{key}")]
     public async ValueTask<MessageModel> SeriesAsync(string key, int page = 1, int size = 20)
     {
+        if (size <= 0 || size > 30) size = 20;
         // TODO 后续只能传ID
         var library = await _context.Librarys.SingleOrDefaultAsync(x => x.Id == key || x.FullPath == key);
         library.Series = await _context.Series
