@@ -26,7 +26,7 @@ public class BookController : ControllerBase
         _memoryCache = memoryCache;
     }
 
-    private void PostEvictionCallback(object key, object? value, EvictionReason reason, object? state)
+    private void PostEvictionCallback(object key, object value, EvictionReason reason, object state)
     {
         if (value is (EpubBook epub, SemaphoreSlim _))
         {
@@ -39,7 +39,7 @@ public class BookController : ControllerBase
         var result = _memoryCache.Get<(EpubBook, SemaphoreSlim)?>(id);
         if (result == null)
         {
-            var book = await _context.Books.Where(x => x.BookId == id).FirstAsync();
+            var book = await _context.Books.SingleOrDefaultAsync(x => x.Id == id) ?? throw new FileNotFoundException("Book not found");
             var epub = await EpubBook.ReadEpubAsync(book.FullPath);
             var slim = new SemaphoreSlim(1, 1);
 
@@ -54,44 +54,68 @@ public class BookController : ControllerBase
     }
 
     [HttpGet("[action]/{id}")]
-    public async ValueTask<MessageModel> ItemsAsync(string id)
+    public async ValueTask<ActionResult<MessageModel>> ItemsAsync(string id)
     {
-        var (epub, _) = await GetEpubAsync(id);
-        var items = epub.GetTextIDs().ToArray();
-        return MessageHelp.Success(items);
+        try
+        {
+            var (epub, _) = await GetEpubAsync(id);
+            var items = epub.GetTextIDs().ToArray();
+            return MessageHelp.Success(items);
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     [HttpGet("[action]/{id}/{**path}")]
     public async ValueTask ItemAsync(string id, string path)
     {
-        var (epub, slim) = await GetEpubAsync(id);
-
-        await slim.WaitAsync();
         try
         {
-            var entry = epub.GetItemEntryByHref(path);
-            if (entry == null)
+            var (epub, slim) = await GetEpubAsync(id);
+
+            await slim.WaitAsync();
+            try
             {
-                Response.StatusCode = 404;
-                return;
+                var entry = epub.GetItemEntryByHref(path);
+                if (entry == null)
+                {
+                    Response.StatusCode = 404;
+                    return;
+                }
+
+                var extension = Path.GetExtension(path);
+                using var stream = entry.Open();
+
+                Response.ContentLength = entry.Length;
+                var contentType = "application/octet-stream";
+                if (extension.Equals(".opf"))
+                {
+                    contentType = "application/xml";
+                }
+                else
+                {
+                    if (ContentTypeMappings.TryGetValue(extension, out var value)) contentType = value;
+                    Response.ContentType = contentType;
+                }
+
+                byte[] buffer = new byte[81920];
+                int read;
+                while ((read = await stream.ReadAsync(buffer)) != 0)
+                {
+                    await Response.BodyWriter.WriteAsync(buffer.AsMemory(0, read));
+                }
             }
-
-            var extension = Path.GetExtension(path);
-            using var stream = entry.Open();
-
-            Response.ContentLength = entry.Length;
-            Response.ContentType = ContentTypeMappings[extension] ?? "application/octet-stream";
-
-            byte[] buffer = new byte[81920];
-            int read;
-            while ((read = await stream.ReadAsync(buffer)) != 0)
+            finally
             {
-                await Response.BodyWriter.WriteAsync(buffer.AsMemory(0, read));
+                slim.Release();
             }
         }
-        finally
+        catch (FileNotFoundException)
         {
-            slim.Release();
+            Response.StatusCode = 404;
+            return;
         }
     }
 }

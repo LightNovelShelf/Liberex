@@ -1,6 +1,8 @@
-﻿#nullable disable
-
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.Extensions.Options;
+using System.ComponentModel.DataAnnotations;
+using System.Reflection.Metadata;
 
 namespace Liberex.Models.Context;
 
@@ -22,64 +24,5 @@ public class LiberexContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-
     }
-}
-
-public class Library
-{
-    public long Id { get; set; }
-
-    public string LibraryId { get; set; }
-
-    public string FullPath { get; set; }
-
-    public DateTime AddTime { get; set; } = DateTime.Now;
-
-    public DateTime LastUpdateTime { get; set; } = DateTime.Now;
-}
-
-public class Series
-{
-    public long Id { get; set; }
-
-    public string SeriesId { get; set; }
-
-    public string FullPath { get; set; }
-
-    public string LibraryId { get; set; }
-
-    public DateTime AddTime { get; set; } = DateTime.Now;
-
-    public DateTime LastUpdateTime { get; set; } = DateTime.Now;
-}
-
-public class Book
-{
-    public long Id { get; set; }
-
-    public string Hash { get; set; }
-
-    public string FullPath { get; set; }
-
-    public long FileSize { get; set; }
-
-    public DateTime AddTime { get; set; } = DateTime.Now;
-
-    public DateTime ModifyTime { get; set; } = DateTime.Now;
-
-    public string BookId { get; set; }
-
-    public string SeriesId { get; set; }
-
-    public string LibraryId { get; set; }
-
-
-    public string Title { get; set; }
-
-    public string Author { get; set; }
-
-    public string Summary { get; set; }
-
-    public string OEBPS { get; set; }
 }

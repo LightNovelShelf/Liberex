@@ -2,7 +2,7 @@
 
 public class MessageModel<T> : MessageModel
 {
-    public T? Response { get; set; }
+    public T Response { get; set; }
 }
 
 public class MessageModel

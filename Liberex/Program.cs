@@ -3,11 +3,16 @@ using Liberex.Models.Context;
 using Liberex.Services;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
 
 builder.Services.AddResponseCompression(options =>
 {
@@ -26,6 +31,7 @@ builder.Services.AddDbContext<LiberexContext>(options =>
 });
 
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<FileScanService>();
 builder.Services.AddHostedService<FileMonitorService>();
 
 var app = builder.Build();
