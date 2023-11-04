@@ -31,7 +31,7 @@ var dataDirectory = builder.Configuration["DataDirectory"] ?? "./";
 if (!Directory.Exists(dataDirectory)) Directory.CreateDirectory(dataDirectory);
 builder.Services.AddDbContext<LiberexContext>(options =>
 {
-    options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}");
+    options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}").UseSnakeCaseNamingConvention();
 });
 
 builder.Services.AddMemoryCache();

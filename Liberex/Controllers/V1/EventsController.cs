@@ -15,10 +15,10 @@ namespace Liberex.Controllers.V1;
 [Route("sse/v1/[controller]")]
 public class EventsController : ControllerBase
 {
-    private readonly ILogger<ListController> _logger;
+    private readonly ILogger<EventsController> _logger;
     private readonly IMessageRepository _messageRepository;
 
-    public EventsController(ILogger<ListController> logger, LiberexContext liberexContext, FileScanService fileScanService, IMessageRepository messageRepository)
+    public EventsController(ILogger<EventsController> logger, LiberexContext liberexContext, FileScanService fileScanService, IMessageRepository messageRepository)
     {
         _logger = logger;
         _messageRepository = messageRepository;

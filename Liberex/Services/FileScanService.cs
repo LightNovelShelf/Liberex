@@ -15,7 +15,6 @@ public class FileScanService : IDisposable
     private readonly IMessageRepository _messageRepository;
 
     private static int s_scaning = 0;
-    private static int s_checking = 0;
     private bool disposedValue;
 
     public FileScanService(ILogger<FileScanService> logger, IMessageRepository messageRepository, IServiceProvider serviceProvider)
@@ -68,122 +67,143 @@ public class FileScanService : IDisposable
 
     private async ValueTask ScanByLibraryAsync(string id, CancellationToken cancellationToken = default)
     {
-        var library = await _context.Librarys.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+        try
+        {
+            var library = await _context.Librarys.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
                 ?? throw new ScanException("no this library");
-        // 扫描所有Series
-        foreach (var item in Directory.EnumerateDirectories(library.FullPath, "*", SearchOption.TopDirectoryOnly))
-        {
-            // 检查 Series
-            var series = await _context.Series.FirstOrDefaultAsync(x => x.FullPath == item, cancellationToken);
-            if (series is null)
+            // 扫描所有Series
+            foreach (var item in Directory.EnumerateDirectories(library.FullPath, "*", SearchOption.TopDirectoryOnly))
             {
-                series = new Series
+                // 检查 Series
+                var series = await _context.Series.FirstOrDefaultAsync(x => x.FullPath == item, cancellationToken);
+                if (series is null)
                 {
-                    Id = CorrelationIdGenerator.GetNextId(),
-                    FullPath = item,
-                    LibraryId = library.Id,
-                };
-                await _context.Series.AddAsync(series, cancellationToken);
-                await _context.SaveChangesAsync(cancellationToken);
-                _logger.LogInformation($"Series has be add: {Path.GetFileName(series.FullPath)} ({series.Id})");
+                    series = new Series
+                    {
+                        Id = CorrelationIdGenerator.GetNextId(),
+                        FullPath = item,
+                        LibraryId = library.Id,
+                    };
+                    await _context.Series.AddAsync(series, cancellationToken);
+                    await _context.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation($"Series has be add: {Path.GetFileName(series.FullPath)} ({series.Id})");
+                }
+                await ScanBySeriesAsync(series.Id, cancellationToken);
             }
-            await ScanBySeriesAsync(series.Id, cancellationToken);
-        }
 
-        // 标记不存在的Series
-        var ids = new List<string>();
-        foreach (var item in _context.Series.Where(x => x.LibraryId == id).Select(x => new { x.FullPath, x.Id }))
-        {
-            if (!Directory.Exists(item.FullPath))
+            // 标记不存在的Series
+            var ids = new List<string>();
+            foreach (var item in _context.Series.Where(x => x.LibraryId == id).Select(x => new { x.FullPath, x.Id }))
             {
-                _logger.LogInformation($"Series has be remove: {Path.GetFileName(item.FullPath)} ({item.Id})");
-                ids.Add(item.Id);
+                if (!Directory.Exists(item.FullPath))
+                {
+                    _logger.LogInformation($"Series has be remove: {Path.GetFileName(item.FullPath)} ({item.Id})");
+                    ids.Add(item.Id);
+                }
             }
+            await _context.Series
+                .Where(x => ids.Contains(x.Id))
+                .ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
         }
-        await _context.Series
-            .Where(x => ids.Contains(x.Id))
-            .ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Scan library error: {id}", id);
+        }
     }
 
     private async ValueTask ScanBySeriesAsync(string id, CancellationToken cancellationToken = default)
     {
-        var series = await _context.Series.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new ScanException("no this series");
-
-        foreach (var item in Directory.EnumerateFiles(series.FullPath, "*.epub", SearchOption.AllDirectories))
+        try
         {
-            await AddBookAsync(item, series, cancellationToken);
-        }
+            var series = await _context.Series.FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+                ?? throw new ScanException("no this series");
 
-        // 标记不存在的Book
-        var ids = new List<string>();
-        foreach (var item in _context.Books.Where(x => x.SeriesId == id).Select(x => new { x.FullPath, x.Id }))
-        {
-            if (!File.Exists(item.FullPath))
+            foreach (var item in Directory.EnumerateFiles(series.FullPath, "*.epub", SearchOption.AllDirectories))
             {
-                _logger.LogInformation($"EPUB has be remove: {Path.GetFileName(item.FullPath)} ({item.Id})");
-                ids.Add(item.Id);
+                await AddBookAsync(item, series, cancellationToken);
             }
+
+            // 标记不存在的Book
+            var ids = new List<string>();
+            foreach (var item in _context.Books.Where(x => x.SeriesId == id).Select(x => new { x.FullPath, x.Id }))
+            {
+                if (!File.Exists(item.FullPath))
+                {
+                    _logger.LogInformation($"EPUB has be remove: {Path.GetFileName(item.FullPath)} ({item.Id})");
+                    ids.Add(item.Id);
+                }
+            }
+            await _context.Books
+                .Where(x => ids.Contains(x.Id))
+                .ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
         }
-        await _context.Books
-            .Where(x => ids.Contains(x.Id))
-            .ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Scan series error: {id}", id);
+        }
     }
 
     public async ValueTask AddBookAsync(string fullPath, Series series, CancellationToken cancellationToken = default)
     {
-        var isUpdate = false;
-        var fileInfo = new FileInfo(fullPath);
-
-        async Task UpdateAsync(Book book)
+        try
         {
-            using var fileStream = new FileStream(fullPath, FileMode.Open);
-            var hash = await Utils.Hash.ComputeMD5Async(fileStream, cancellationToken);
-            fileStream.Seek(0, SeekOrigin.Begin);
-            using var epub = await EpubBook.ReadEpubAsync(fileStream);
+            var isUpdate = false;
+            var fileInfo = new FileInfo(fullPath);
 
-            if (book.Hash != hash)
+            async Task UpdateAsync(Book book)
             {
-                book.IsDelete = false;
-                book.Hash = hash;
-                book.ModifyTime = fileInfo.LastWriteTime;
-                book.FileSize = fileInfo.Length;
-                book.Title = epub.Title;
-                book.Author = epub.Author;
-                book.Opf = epub.Opf;
+                using var fileStream = new FileStream(fullPath, FileMode.Open);
+                var hash = await Utils.Hash.ComputeMD5Async(fileStream, cancellationToken);
+                fileStream.Seek(0, SeekOrigin.Begin);
+                using var epub = await EpubBook.ReadEpubAsync(fileStream);
 
-                series.LastUpdateTime = DateTime.Now;
+                if (book.Hash != hash)
+                {
+                    book.IsDelete = false;
+                    book.Hash = hash;
+                    book.ModifyTime = fileInfo.LastWriteTime;
+                    book.FileSize = fileInfo.Length;
+                    book.Title = epub.Title;
+                    book.Author = epub.Author;
+                    book.Opf = epub.Opf;
+
+                    series.LastUpdateTime = DateTime.Now;
+                }
+                isUpdate = true;
             }
-            isUpdate = true;
-        }
 
-        var bookQuery = _context.Books.Where(x => x.FullPath == fullPath);
-        if (await bookQuery.AnyAsync(cancellationToken))
-        {
-            // 存在的情况，判断是否需要更新
-            if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length || x.IsDelete, cancellationToken))
+            var bookQuery = _context.Books.Where(x => x.FullPath == fullPath);
+            if (await bookQuery.AnyAsync(cancellationToken))
             {
-                var book = await bookQuery.FirstAsync(cancellationToken);
+                // 存在的情况，判断是否需要更新
+                if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length || x.IsDelete, cancellationToken))
+                {
+                    var book = await bookQuery.FirstAsync(cancellationToken);
+                    await UpdateAsync(book);
+                    _logger.LogInformation($"EPUB has be update: {Path.GetFileName(fullPath)} ({series.Id})");
+                }
+            }
+            else
+            {
+                var book = new Book
+                {
+                    Id = CorrelationIdGenerator.GetNextId(),
+                    FullPath = fullPath,
+
+                    Series = series,
+                };
                 await UpdateAsync(book);
-                _logger.LogInformation($"EPUB has be update: {Path.GetFileName(fullPath)} ({series.Id})");
+                await _context.Books.AddAsync(book, cancellationToken);
+                _logger.LogInformation($"EPUB has be add: {Path.GetFileName(fullPath)} ({book.Id})");
             }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            if (isUpdate) _messageRepository.Broadcast(new Notification("series_update", series.Id));
         }
-        else
+        catch (Exception e)
         {
-            var book = new Book
-            {
-                Id = CorrelationIdGenerator.GetNextId(),
-                FullPath = fullPath,
-
-                Series = series,
-            };
-            await UpdateAsync(book);
-            await _context.Books.AddAsync(book, cancellationToken);
-            _logger.LogInformation($"EPUB has be add: {Path.GetFileName(fullPath)} ({book.Id})");
+            _logger.LogError(e, "Add book error: {Path}", fullPath);
         }
-
-        await _context.SaveChangesAsync(cancellationToken);
-        if (isUpdate) _messageRepository.Broadcast(new Notification("series_update", series.Id));
     }
 
     protected virtual void Dispose(bool disposing)

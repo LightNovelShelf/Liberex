@@ -14,6 +14,8 @@ public class Library
 
     public string FullPath { get; set; }
 
+    public string Name { get; set; }
+
     public DateTime AddTime { get; private set; } = DateTime.Now;
 
     // public DateTime LastUpdateTime { get; set; } = DateTime.Now;

@@ -35,4 +35,15 @@ public static class MessageHelp
             Code = Code,
         };
     }
+
+    public static MessageModel<T> Error<T>(string message, T response = default, int Code = 500)
+    {
+        return new MessageModel<T>()
+        {
+            Success = false,
+            Msg = message,
+            Code = Code,
+            Response = response
+        };
+    }
 }

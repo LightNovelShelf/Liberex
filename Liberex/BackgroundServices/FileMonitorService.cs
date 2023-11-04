@@ -20,13 +20,14 @@ public class FileMonitorService : BackgroundService
 
     private async Task InitAsync(CancellationToken cancellationToken = default)
     {
+        // 第一次启动时，初始化数据库
         if (_first)
         {
-            // 第一次启动时，初始化数据库
             using var scope = _serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetService<LiberexContext>();
 
-            await context.Database.EnsureDeletedAsync(cancellationToken);
+            // 每次启动时清空数据库，重新创建
+            // await context.Database.EnsureDeletedAsync(cancellationToken);
             await context.Database.EnsureCreatedAsync(cancellationToken);
             _first = false;
         }
@@ -38,8 +39,16 @@ public class FileMonitorService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await InitAsync(stoppingToken);
-            await Task.Delay(60 * 1000, stoppingToken);
+            try
+            {
+                await InitAsync(stoppingToken);
+            }
+            catch (Exception)
+            {
+            }
+
+            // 半小时扫描一次
+            await Task.Delay(30 * 60 * 1000, stoppingToken);
         }
     }
 }

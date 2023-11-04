@@ -4,18 +4,19 @@ using Liberex.Services;
 using Liberex.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace Liberex.Controllers.V1;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class ListController : ControllerBase
+public class LibraryController : ControllerBase
 {
-    private readonly ILogger<ListController> _logger;
+    private readonly ILogger<LibraryController> _logger;
     private readonly LiberexContext _context;
     private readonly FileScanService _fileScanService;
 
-    public ListController(ILogger<ListController> logger, LiberexContext liberexContext, FileScanService fileScanService)
+    public LibraryController(ILogger<LibraryController> logger, LiberexContext liberexContext, FileScanService fileScanService)
     {
         _logger = logger;
         _context = liberexContext;
@@ -43,11 +44,11 @@ public class ListController : ControllerBase
     public record SeriesResult(Library Library, Pagination Page);
 
     // 获取Series列表，分页
-    [HttpGet("[action]/{libraryId}")]
-    public async ValueTask<MessageModel<SeriesResult>> SeriesAsync(string libraryId, int page = 1, int size = 20)
+    [HttpGet("[action]/{id}")]
+    public async ValueTask<MessageModel<SeriesResult>> SeriesAsync(string id, int page = 1, int size = 20)
     {
         if (size <= 0 || size > 30) size = 20;
-        var library = await _context.Librarys.SingleOrDefaultAsync(x => x.Id == libraryId);
+        var library = await _context.Librarys.SingleOrDefaultAsync(x => x.Id == id);
         library.Series = await _context.Series
             .Where(x => x.LibraryId == library.Id)
             .OrderBy(x => x.Id)
@@ -70,30 +71,27 @@ public class ListController : ControllerBase
 
     // 获取Library列表
     [HttpGet("[action]")]
-    public async ValueTask<MessageModel<Library[]>> LibrarysAsync()
+    public async ValueTask<MessageModel<Library[]>> IndexAsync()
     {
         var librarys = await _context.Librarys.OrderBy(x => x.Id).ToArrayAsync();
         return MessageHelp.Success(librarys);
     }
 
-    /// <summary>
-    /// 添加库
-    /// </summary>
-    /// <param name="path"></param>
-    /// <returns></returns>
+    // 添加库
     [HttpGet("[action]")]
-    public async ValueTask<MessageModel<Library>> AddLibraryAsync(string path)
+    public async ValueTask<MessageModel<Library>> AddAsync([Required] string path, [Required] string name)
     {
-        var library = new Library { Id = CorrelationIdGenerator.GetNextId(), FullPath = path };
+        if (Directory.Exists(path) == false) return MessageHelp.Error<Library>("路径不存在");
+        var library = new Library { Id = CorrelationIdGenerator.GetNextId(), FullPath = path, Name = name };
         await _context.Librarys.AddAsync(library);
         await _context.SaveChangesAsync();
-        await _fileScanService.ScanAsync(library.Id, null);
+        _ = Task.Run(() => _fileScanService.ScanAsync(library.Id, null));
         return MessageHelp.Success(library);
     }
 
     // 删除库
-    [HttpGet("[action]")]
-    public async ValueTask<MessageModel> DeleteLibraryAsync(string id)
+    [HttpGet("[action]/{id}")]
+    public async ValueTask<MessageModel> DeleteAsync(string id)
     {
         await _context.Librarys.Where(x => x.Id == id).ExecuteDeleteAsync();
         return MessageHelp.Success();
