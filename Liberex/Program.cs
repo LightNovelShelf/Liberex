@@ -1,5 +1,6 @@
 using Liberex.BackgroundServices;
 using Liberex.Models.Context;
+using Liberex.Providers;
 using Liberex.Services;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +34,7 @@ builder.Services.AddDbContext<LiberexContext>(options =>
 builder.Services.AddMemoryCache();
 builder.Services.AddSingleton<FileScanService>();
 builder.Services.AddHostedService<FileMonitorService>();
+builder.Services.AddSingleton<IMessageRepository, MessageRepository>();
 
 var app = builder.Build();
 

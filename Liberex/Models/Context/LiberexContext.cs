@@ -1,8 +1,4 @@
 ﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.Extensions.Options;
-using System.ComponentModel.DataAnnotations;
-using System.Reflection.Metadata;
 
 namespace Liberex.Models.Context;
 
@@ -24,5 +20,16 @@ public class LiberexContext : DbContext
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Series>()
+            .HasOne(e => e.Library)
+            .WithMany(x => x.Series)
+            .HasForeignKey(x => x.LibraryId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Book>()
+            .HasOne(e => e.Series)
+            .WithMany(x => x.Books)
+            .HasForeignKey(x => x.SeriesId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

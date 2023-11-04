@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using System.Buffers;
 using Wuyu.Epub;
 
 namespace Liberex.Controllers.V1;
@@ -54,12 +53,12 @@ public class BookController : ControllerBase
     }
 
     [HttpGet("[action]/{id}")]
-    public async ValueTask<ActionResult<MessageModel>> ItemsAsync(string id)
+    public async ValueTask<ActionResult<MessageModel<IEnumerable<string>>>> ItemAsync(string id)
     {
         try
         {
             var (epub, _) = await GetEpubAsync(id);
-            var items = epub.GetTextIDs().ToArray();
+            var items = epub.GetTextIDs().Select(x => epub.GetItemById(x).Href);
             return MessageHelp.Success(items);
         }
         catch (FileNotFoundException)

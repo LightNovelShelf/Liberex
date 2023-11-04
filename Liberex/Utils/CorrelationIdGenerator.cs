@@ -1,4 +1,4 @@
-﻿namespace Liberex.Internal;
+﻿namespace Liberex.Utils;
 
 internal static class CorrelationIdGenerator
 {

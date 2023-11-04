@@ -1,8 +1,9 @@
-﻿using Liberex.Internal;
+﻿using Liberex.Models;
 using Liberex.Models.Context;
+using Liberex.Providers;
+using Liberex.Utils;
 using Microsoft.EntityFrameworkCore;
 using Wuyu.Epub;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace Liberex.Services;
 
@@ -11,17 +12,27 @@ public class FileScanService : IDisposable
     private readonly ILogger<FileScanService> _logger;
     private readonly LiberexContext _context;
     private readonly IServiceScope _scope;
+    private readonly IMessageRepository _messageRepository;
 
     private static int s_scaning = 0;
     private static int s_checking = 0;
     private bool disposedValue;
 
-    public FileScanService(ILogger<FileScanService> logger, IServiceProvider serviceProvider)
+    public FileScanService(ILogger<FileScanService> logger, IMessageRepository messageRepository, IServiceProvider serviceProvider)
     {
         _logger = logger;
+        _messageRepository = messageRepository;
 
         _scope = serviceProvider.CreateScope();
         _context = _scope.ServiceProvider.GetService<LiberexContext>()!;
+    }
+
+    public async ValueTask ScanAllAsync(CancellationToken cancellationToken = default)
+    {
+        foreach (var id in _context.Librarys.Select(x => x.Id))
+        {
+            await ScanAsync(id, null, cancellationToken);
+        }
     }
 
     public async ValueTask ScanAsync(string libraryId, string seriesId, CancellationToken cancellationToken = default)
@@ -121,6 +132,7 @@ public class FileScanService : IDisposable
 
     public async ValueTask AddBookAsync(string fullPath, Series series, CancellationToken cancellationToken = default)
     {
+        var isUpdate = false;
         var fileInfo = new FileInfo(fullPath);
 
         async Task UpdateAsync(Book book)
@@ -142,13 +154,14 @@ public class FileScanService : IDisposable
 
                 series.LastUpdateTime = DateTime.Now;
             }
+            isUpdate = true;
         }
 
         var bookQuery = _context.Books.Where(x => x.FullPath == fullPath);
         if (await bookQuery.AnyAsync(cancellationToken))
         {
             // 存在的情况，判断是否需要更新
-            if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length, cancellationToken))
+            if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length || x.IsDelete, cancellationToken))
             {
                 var book = await bookQuery.FirstAsync(cancellationToken);
                 await UpdateAsync(book);
@@ -170,6 +183,7 @@ public class FileScanService : IDisposable
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        if (isUpdate) _messageRepository.Broadcast(new Notification("series_update", series.Id));
     }
 
     protected virtual void Dispose(bool disposing)
