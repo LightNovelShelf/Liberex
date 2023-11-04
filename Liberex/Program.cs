@@ -1,9 +1,11 @@
 using Liberex.BackgroundServices;
+using Liberex.Internal;
 using Liberex.Models.Context;
 using Liberex.Providers;
 using Liberex.Services;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +15,7 @@ builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+        options.JsonSerializerOptions.PropertyNamingPolicy = SnakeCaseNamingPolicy.Instance;
     });
 
 builder.Services.AddResponseCompression(options =>
