@@ -5,6 +5,7 @@ using Liberex.Providers;
 using Liberex.Services;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -29,6 +30,10 @@ builder.Services.AddSwaggerGen();
 
 var dataDirectory = builder.Configuration["DataDirectory"] ?? "./";
 if (!Directory.Exists(dataDirectory)) Directory.CreateDirectory(dataDirectory);
+
+var settingPath = Path.Combine(dataDirectory, "setting.json");
+if (!File.Exists(settingPath)) File.WriteAllText(settingPath, "{}");
+builder.Configuration.AddJsonFile(settingPath, optional: true, reloadOnChange: true);
 builder.Services.AddDbContext<LiberexContext>(options =>
 {
     options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}").UseSnakeCaseNamingConvention();

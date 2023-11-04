@@ -18,7 +18,7 @@ public class FileMonitorService : BackgroundService
         _fileScanService = fileScanService;
     }
 
-    private async Task InitAsync(CancellationToken cancellationToken = default)
+    private async ValueTask InitAsync(CancellationToken cancellationToken = default)
     {
         // 第一次启动时，初始化数据库
         if (_first)
@@ -32,23 +32,24 @@ public class FileMonitorService : BackgroundService
             _first = false;
         }
 
-        await _fileScanService.ScanAllAsync(cancellationToken);
+        _ = Task.Run(() => _fileScanService.ScanAllAsync(cancellationToken));
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
         {
+            // 每小时扫描一次
+            await Task.Delay(60 * 60 * 1000, stoppingToken);
+
             try
             {
                 await InitAsync(stoppingToken);
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                _logger.LogError(e, "Init error");
             }
-
-            // 半小时扫描一次
-            await Task.Delay(30 * 60 * 1000, stoppingToken);
         }
     }
 }
