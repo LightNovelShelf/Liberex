@@ -1,11 +1,10 @@
-using Liberex.BackgroundServices;
+using Liberex.HostServices;
 using Liberex.Internal;
 using Liberex.Models.Context;
 using Liberex.Providers;
-using Liberex.Services;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -17,6 +16,7 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
         options.JsonSerializerOptions.PropertyNamingPolicy = SnakeCaseNamingPolicy.Instance;
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
 builder.Services.AddResponseCompression(options =>
@@ -39,10 +39,24 @@ builder.Services.AddDbContext<LiberexContext>(options =>
     options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}").UseSnakeCaseNamingConvention();
 });
 
+var jsonSerializerOptions = new JsonSerializerOptions()
+{
+    Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+    ReferenceHandler = ReferenceHandler.IgnoreCycles,
+    PropertyNamingPolicy = SnakeCaseNamingPolicy.Instance,
+    Converters =
+    {
+        new JsonStringEnumConverter(SnakeCaseNamingPolicy.Instance)
+    }
+};
+
+builder.Services.AddScoped<LibraryService>();
+// 全局Json序列化配置
+builder.Services.AddSingleton(jsonSerializerOptions);
 builder.Services.AddMemoryCache();
-builder.Services.AddSingleton<FileScanService>();
-builder.Services.AddHostedService<FileMonitorService>();
-builder.Services.AddSingleton<IMessageRepository, MessageRepository>();
+// 文件监控服务
+builder.Services.AddSingleton<FileMonitorService>();
+builder.Services.AddHostedService<FileMonitorHostService>();
 
 var app = builder.Build();
 

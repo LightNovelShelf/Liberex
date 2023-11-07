@@ -1,5 +1,5 @@
 using Liberex.Models;
-using Liberex.Models.Context;
+using Liberex.Providers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
@@ -15,14 +15,14 @@ public class BookController : ControllerBase
     private static readonly IDictionary<string, string> ContentTypeMappings = (new FileExtensionContentTypeProvider()).Mappings;
 
     private readonly ILogger<BookController> _logger;
-    private readonly LiberexContext _context;
     private readonly IMemoryCache _memoryCache;
+    private readonly LibraryService _libraryService;
 
-    public BookController(ILogger<BookController> logger, LiberexContext liberexContext, IMemoryCache memoryCache)
+    public BookController(ILogger<BookController> logger, LibraryService libraryService, IMemoryCache memoryCache)
     {
         _logger = logger;
-        _context = liberexContext;
         _memoryCache = memoryCache;
+        _libraryService = libraryService;
     }
 
     private void PostEvictionCallback(object key, object value, EvictionReason reason, object state)
@@ -38,8 +38,11 @@ public class BookController : ControllerBase
         var result = _memoryCache.Get<(EpubBook, SemaphoreSlim)?>(id);
         if (result == null)
         {
-            var book = await _context.Books.SingleOrDefaultAsync(x => x.Id == id) ?? throw new FileNotFoundException("Book not found");
-            var epub = await EpubBook.ReadEpubAsync(book.FullPath);
+            var fullPath = await _libraryService.Books
+                .Where(x => x.Id == id)
+                .Select(x => x.FullPath)
+                .SingleOrDefaultAsync() ?? throw new FileNotFoundException("Book not found");
+            var epub = await EpubBook.ReadEpubAsync(fullPath);
             var slim = new SemaphoreSlim(1, 1);
 
             var options = new MemoryCacheEntryOptions()

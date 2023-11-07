@@ -1,11 +1,7 @@
-﻿using Liberex.Models;
-using Liberex.Models.Context;
+﻿using Liberex.Internal;
 using Liberex.Providers;
-using Liberex.Providers.Event;
-using Liberex.Services;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -15,13 +11,17 @@ namespace Liberex.Controllers.V1;
 [Route("sse/v1/[controller]")]
 public class EventsController : ControllerBase
 {
-    private readonly ILogger<EventsController> _logger;
-    private readonly IMessageRepository _messageRepository;
+    private static int s_id = -1;
 
-    public EventsController(ILogger<EventsController> logger, LiberexContext liberexContext, FileScanService fileScanService, IMessageRepository messageRepository)
+    private readonly ILogger<EventsController> _logger;
+    private readonly FileMonitorService _fileMonitorService;
+    private readonly JsonSerializerOptions _jsonSerializerOptions;
+
+    public EventsController(ILogger<EventsController> logger, FileMonitorService fileMonitorService, JsonSerializerOptions jsonSerializerOptions)
     {
         _logger = logger;
-        _messageRepository = messageRepository;
+        _fileMonitorService = fileMonitorService;
+        _jsonSerializerOptions = jsonSerializerOptions;
     }
 
     private void SetServerSentEventHeaders()
@@ -31,50 +31,60 @@ public class EventsController : ControllerBase
         Response.Headers.Add("Connection", "keep-alive");
     }
 
+    private async Task WriteHeader(string eventType, CancellationToken cancellationToken)
+    {
+        await Response.WriteAsync($"id:{Interlocked.Add(ref s_id, 1)}\n", cancellationToken);
+        await Response.WriteAsync($"event:{eventType}\n", cancellationToken);
+    }
+
+    private async Task CreatePingMessage(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await WriteHeader("ping", cancellationToken);
+            await Response.WriteAsync($"data:\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error while sending message");
+        }
+    }
+
+    private async Task CreateJsonMessage(string eventType, LibraryChangeData data, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await WriteHeader(eventType, cancellationToken);
+            var json = JsonSerializer.Serialize(data, _jsonSerializerOptions);
+            await Response.WriteAsync($"data:{json}\n\n", cancellationToken);
+            await Response.Body.FlushAsync(cancellationToken);
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Error while sending message");
+        }
+    }
+
     [HttpGet]
     public async Task GetMessages(CancellationToken cancellationToken)
     {
         SetServerSentEventHeaders();
 
-        async void onMessageCreated(object sender, NotificationArgs eventArgs)
-        {
-            try
-            {
-                await Response.WriteAsync($"id:{eventArgs.Notification.Id}\n", cancellationToken);
-                await Response.WriteAsync($"event:{eventArgs.Notification.Type}\n", cancellationToken);
-                if (eventArgs.Notification.Message is null)
-                {
-                    await Response.WriteAsync($"data:\n\n", cancellationToken);
-                }
-                else if (eventArgs.Notification.Message is string str)
-                {
-                    await Response.WriteAsync($"data:{str}\n\n", cancellationToken);
-                }
-                else
-                {
-                    var json = JsonSerializer.Serialize(eventArgs.Notification.Message);
-                    await Response.WriteAsync($"data:{json}\n\n", cancellationToken);
-                }
-
-                await Response.Body.FlushAsync(cancellationToken);
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "Error while sending message");
-            }
-        }
-        _messageRepository.NotificationEvent += onMessageCreated;
+        var librarySubscribe = _fileMonitorService.LibraryChangeSubject
+            .Subscribe(e => _ = CreateJsonMessage("library_change", e, cancellationToken));
 
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(10 * 1000, cancellationToken);
+                await CreatePingMessage(cancellationToken);
             }
         }
         finally
         {
-            _messageRepository.NotificationEvent -= onMessageCreated;
+            librarySubscribe.Dispose();
         }
     }
 }

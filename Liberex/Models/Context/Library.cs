@@ -1,7 +1,9 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 
 namespace Liberex.Models.Context;
 
+[Index(nameof(FullPath), IsUnique = true)]
 public class Library
 {
     public Library()

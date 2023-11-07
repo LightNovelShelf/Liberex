@@ -1,7 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace Liberex.Models.Context;
 
+[Index(nameof(FullPath), IsUnique = true)]
 public class Book
 {
     [MaxLength(13)]
@@ -31,4 +34,6 @@ public class Book
     public string Summary { get; set; }
 
     public string Opf { get; set; }
+
+    public byte[] Thumbnail { get; set; }
 }

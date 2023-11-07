@@ -1,6 +1,6 @@
 ﻿using Liberex.Models;
 using Liberex.Models.Context;
-using Liberex.Services;
+using Liberex.Providers;
 using Liberex.Utils;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -14,13 +14,13 @@ public class LibraryController : ControllerBase
 {
     private readonly ILogger<LibraryController> _logger;
     private readonly LiberexContext _context;
-    private readonly FileScanService _fileScanService;
+    private readonly FileMonitorService _fileMonitorService;
 
-    public LibraryController(ILogger<LibraryController> logger, LiberexContext liberexContext, FileScanService fileScanService)
+    public LibraryController(ILogger<LibraryController> logger, LiberexContext liberexContext, FileMonitorService fileMonitorService)
     {
         _logger = logger;
         _context = liberexContext;
-        _fileScanService = fileScanService;
+        _fileMonitorService = fileMonitorService;
     }
 
     public record BooksResult(Series Series, Pagination Page);
@@ -85,7 +85,8 @@ public class LibraryController : ControllerBase
         var library = new Library { Id = CorrelationIdGenerator.GetNextId(), FullPath = path, Name = name };
         await _context.Librarys.AddAsync(library);
         await _context.SaveChangesAsync();
-        _ = Task.Run(() => _fileScanService.ScanAsync(library.Id, null));
+        _fileMonitorService.WatchLibrary(library.Id, library.FullPath);
+        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(library, WatcherChangeTypes.Created, library.FullPath));
         return MessageHelp.Success(library);
     }
 
@@ -99,9 +100,18 @@ public class LibraryController : ControllerBase
 
     // 扫描
     [HttpGet("[action]")]
-    public MessageModel ScanAsync(string libraryId, string seriesId)
+    public async ValueTask<MessageModel> ScanAsync(string libraryId, string seriesId)
     {
-        Task.Run(() => _fileScanService.ScanAsync(libraryId, seriesId));
+        if (string.IsNullOrEmpty(libraryId))
+        {
+            var library = await _context.Librarys.SingleAsync(x => x.Id == libraryId);
+            _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(library, WatcherChangeTypes.Changed, library.FullPath));
+        }
+        else if (string.IsNullOrEmpty(seriesId))
+        {
+            var series = await _context.Series.SingleAsync(x => x.Id == seriesId);
+            _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(series.LibraryId, null, WatcherChangeTypes.Changed, series.FullPath));
+        }
         return MessageHelp.Success();
     }
 

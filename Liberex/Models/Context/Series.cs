@@ -1,8 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using Microsoft.EntityFrameworkCore;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Liberex.Models.Context;
 
+[Index(nameof(FullPath), IsUnique = true)]
 public class Series
 {
     public Series()
