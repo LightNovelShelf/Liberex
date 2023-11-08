@@ -55,7 +55,7 @@ public class BookController : ControllerBase
         return result.Value;
     }
 
-    [HttpGet("[action]/{id}")]
+    [HttpGet("{id}/[action]")]
     public async ValueTask<ActionResult<MessageModel<IEnumerable<string>>>> ItemAsync(string id)
     {
         try
@@ -70,7 +70,15 @@ public class BookController : ControllerBase
         }
     }
 
-    [HttpGet("[action]/{id}/{**path}")]
+    [HttpGet("{id}/[action]")]
+    public async ValueTask<ActionResult> ThumbnailAsync(string id)
+    {
+        var data = await _libraryService.GetBookThumbnailAsync(id);
+        if (data == null) return NotFound();
+        return File(data, "image/jpeg");
+    }
+
+    [HttpGet("{id}/[action]/{**path}")]
     public async ValueTask ItemAsync(string id, string path)
     {
         try

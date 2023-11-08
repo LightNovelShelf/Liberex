@@ -14,18 +14,12 @@ public class Series
 
     [MaxLength(13)]
     public string Id { get; set; }
-
     public string FullPath { get; set; }
-
     public string LibraryId { get; set; }
-
     public bool IsDelete { get; set; }
-
     public DateTime AddTime { get; private set; } = DateTime.Now;
-
     public DateTime LastUpdateTime { get; set; } = DateTime.Now;
 
     public virtual Library Library { get; set; }
-
     public virtual ICollection<Book> Books { get; set; }
 }

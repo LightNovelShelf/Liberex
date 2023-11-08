@@ -20,7 +20,7 @@ public class FileMonitorHostService : IHostedService
 
         _fileMonitorService.LibraryChangeSubject.Subscribe((e) =>
         {
-            _logger.LogInformation("[{ChangeSource}] {ChangeType} : {Path}", e.ChangeSource, e.ChangeType, e.Path);
+            _logger.LogInformation("[{ChangeSource}] {ChangeType} : {Path} ({Id})", e.ChangeSource, e.ChangeType, e.Path, e.Id);
         });
     }
 

@@ -102,12 +102,12 @@ public class LibraryController : ControllerBase
     [HttpGet("[action]")]
     public async ValueTask<MessageModel> ScanAsync(string libraryId, string seriesId)
     {
-        if (string.IsNullOrEmpty(libraryId))
+        if (string.IsNullOrEmpty(libraryId) == false)
         {
             var library = await _context.Librarys.SingleAsync(x => x.Id == libraryId);
             _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(library, WatcherChangeTypes.Changed, library.FullPath));
         }
-        else if (string.IsNullOrEmpty(seriesId))
+        else if (string.IsNullOrEmpty(seriesId) == false)
         {
             var series = await _context.Series.SingleAsync(x => x.Id == seriesId);
             _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(series.LibraryId, null, WatcherChangeTypes.Changed, series.FullPath));

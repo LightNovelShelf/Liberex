@@ -1,6 +1,10 @@
-﻿using Liberex.Models.Context;
+﻿using Blurhash.ImageSharp;
+using Liberex.Models.Context;
 using Liberex.Utils;
 using Microsoft.EntityFrameworkCore;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using Wuyu.Epub;
@@ -116,14 +120,20 @@ public class LibraryService
 
     public IQueryable<Book> Books => _context.Books;
 
-    private static async Task<bool> UpdateBookAsync(Book book, FileInfo fileInfo, CancellationToken cancellationToken = default)
+    public async ValueTask<byte[]> GetBookThumbnailAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var cover = await _context.BookCovers.SingleOrDefaultAsync(x => x.BookId == id, cancellationToken);
+        return cover?.Thumbnail;
+    }
+
+    private async Task<bool> UpdateBookAsync(Book book, FileInfo fileInfo, CancellationToken cancellationToken = default)
     {
         using var fileStream = new FileStream(book.FullPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var hash = await Hash.ComputeMD5Async(fileStream, cancellationToken);
         fileStream.Seek(0, SeekOrigin.Begin);
         using var epub = await EpubBook.ReadEpubAsync(fileStream);
 
-        if (book.Hash != hash || book.IsDelete)
+        if (book.Hash != hash)
         {
             book.IsDelete = false;
             book.Hash = hash;
@@ -132,6 +142,32 @@ public class LibraryService
             book.Title = epub.Title;
             book.Author = epub.Author;
             book.Opf = epub.Opf;
+
+            var data = await epub.GetItemDataByIDAsync(epub.Cover)
+                ?? await epub.GetItemDataByIDAsync("cover")
+                ?? await epub.GetItemDataByIDAsync("cover.jpg");
+            if (data != null)
+            {
+                book.Cover ??= new BookCover { BookId = book.Id };
+                book.Cover.Data = data;
+
+                using var image = Image.Load<Rgba32>(data);
+                book.Cover.Height = image.Height;
+                book.Cover.Width = image.Width;
+                // 有点耗性能。。。
+                // book.Cover.Placeholder = Blurhasher.Encode(image, 2, 3);
+
+                // Resize image to 300 height
+                using var stream = new MemoryStream();
+                image.Mutate(x => x.Resize(image.Width * 300 / image.Height, 300));
+                image.Metadata.ExifProfile = null;
+                image.Metadata.XmpProfile = null;
+                image.Metadata.IccProfile = null;
+                image.Metadata.IptcProfile = null;
+                await image.SaveAsync(stream, new JpegEncoder { Quality = 70 }, cancellationToken);
+                book.Cover.Thumbnail = stream.ToArray();
+            }
+
             return true;
         }
 
@@ -167,10 +203,11 @@ public class LibraryService
     {
         var fileInfo = new FileInfo(fullPath);
         var bookQuery = _context.Books.Where(x => x.FullPath == fullPath);
+        await bookQuery.ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, false), cancellationToken);
 
-        if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length || x.IsDelete, cancellationToken))
+        if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length, cancellationToken))
         {
-            var book = await bookQuery.SingleAsync(cancellationToken);
+            var book = await bookQuery.Include(x => x.Cover).SingleAsync(cancellationToken);
             if (await UpdateBookAsync(book, fileInfo, cancellationToken))
             {
                 series.LastUpdateTime = DateTime.Now;

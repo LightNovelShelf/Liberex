@@ -7,6 +7,7 @@ public class LiberexContext : DbContext
     public DbSet<Library> Librarys { get; set; }
     public DbSet<Book> Books { get; set; }
     public DbSet<Series> Series { get; set; }
+    public DbSet<BookCover> BookCovers { get; set; }
 
     public LiberexContext(DbContextOptions<LiberexContext> options) : base(options)
     {
@@ -30,5 +31,14 @@ public class LiberexContext : DbContext
             .WithMany(x => x.Books)
             .HasForeignKey(x => x.SeriesId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<BookCover>(ob =>
+        {
+            ob.HasKey(x => x.BookId);
+            ob.HasOne(x => x.Book)
+                .WithOne(x => x.Cover)
+                .HasForeignKey<BookCover>(x => x.BookId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

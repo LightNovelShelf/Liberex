@@ -1,9 +1,8 @@
 FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
 WORKDIR /src
-COPY Liberex.csproj .
-RUN dotnet restore
 COPY . .
-RUN dotnet publish -c release -o /app
+RUN dotnet restore ./Liberex/Liberex.csproj
+RUN dotnet publish -c release -o /app ./Liberex/Liberex.csproj
 
 FROM mcr.microsoft.com/dotnet/aspnet:7.0
 WORKDIR /app
