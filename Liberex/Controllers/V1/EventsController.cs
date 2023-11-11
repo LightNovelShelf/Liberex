@@ -1,9 +1,6 @@
-﻿using Liberex.Internal;
-using Liberex.Providers;
+﻿using Liberex.Providers;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Liberex.Controllers.V1;
 

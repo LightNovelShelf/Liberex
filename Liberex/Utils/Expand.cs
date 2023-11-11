@@ -1,4 +1,6 @@
-﻿namespace Liberex.Utils;
+﻿using Microsoft.AspNetCore.Mvc;
+
+namespace Liberex.Utils;
 
 public static class Expand
 {
@@ -12,5 +14,10 @@ public static class Expand
         {
 
         }
+    }
+
+    public static Task ExecuteResultAsync(this ControllerBase controller, ActionResult result)
+    {
+        return result.ExecuteResultAsync(new ActionContext(controller.HttpContext, controller.RouteData, controller.ControllerContext.ActionDescriptor, controller.ModelState));
     }
 }

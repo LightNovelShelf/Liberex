@@ -1,7 +1,8 @@
 using Liberex.Models;
+using Liberex.Models.Context;
 using Liberex.Providers;
+using Liberex.Utils;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Wuyu.Epub;
@@ -12,7 +13,7 @@ namespace Liberex.Controllers.V1;
 [Route("api/v1/[controller]")]
 public class BookController : ControllerBase
 {
-    private static readonly IDictionary<string, string> ContentTypeMappings = (new FileExtensionContentTypeProvider()).Mappings;
+    private static readonly MessageModel s_bookNotFound = MessageHelp.Error("Book not found", 404);
 
     private readonly ILogger<BookController> _logger;
     private readonly IMemoryCache _memoryCache;
@@ -55,8 +56,16 @@ public class BookController : ControllerBase
         return result.Value;
     }
 
+    [HttpGet("{id}")]
+    public async Task<ActionResult<MessageModel<Book>>> IndexAsync(string id)
+    {
+        var book = await _libraryService.Books.SingleOrDefaultAsync(x => x.Id == id);
+        if (book == null) return NotFound(s_bookNotFound);
+        return Ok(MessageHelp.Success(book));
+    }
+
     [HttpGet("{id}/[action]")]
-    public async ValueTask<ActionResult<MessageModel<IEnumerable<string>>>> ItemAsync(string id)
+    public async Task<ActionResult<MessageModel<IEnumerable<string>>>> ItemAsync(string id)
     {
         try
         {
@@ -66,20 +75,20 @@ public class BookController : ControllerBase
         }
         catch (FileNotFoundException)
         {
-            return NotFound();
+            return NotFound(s_bookNotFound);
         }
     }
 
     [HttpGet("{id}/[action]")]
-    public async ValueTask<ActionResult> ThumbnailAsync(string id)
+    public async Task<ActionResult> ThumbnailAsync(string id)
     {
         var data = await _libraryService.GetBookThumbnailAsync(id);
-        if (data == null) return NotFound();
+        if (data == null) return NotFound(s_bookNotFound);
         return File(data, "image/jpeg");
     }
 
     [HttpGet("{id}/[action]/{**path}")]
-    public async ValueTask ItemAsync(string id, string path)
+    public async Task ItemAsync(string id, string path)
     {
         try
         {
@@ -88,33 +97,17 @@ public class BookController : ControllerBase
             await slim.WaitAsync();
             try
             {
-                var entry = epub.GetItemEntryByHref(path);
-                if (entry == null)
+                var item = epub.Package.Manifest.SingleOrDefault(x => x.Href == path);
+                if (item == null)
                 {
-                    Response.StatusCode = 404;
-                    return;
-                }
-
-                var extension = Path.GetExtension(path);
-                using var stream = entry.Open();
-
-                Response.ContentLength = entry.Length;
-                var contentType = "application/octet-stream";
-                if (extension.Equals(".opf"))
-                {
-                    contentType = "application/xml";
+                    var result = NotFound(MessageHelp.Error("Item not found", 404));
+                    await this.ExecuteResultAsync(result);
                 }
                 else
                 {
-                    if (ContentTypeMappings.TryGetValue(extension, out var value)) contentType = value;
-                    Response.ContentType = contentType;
-                }
-
-                byte[] buffer = new byte[81920];
-                int read;
-                while ((read = await stream.ReadAsync(buffer)) != 0)
-                {
-                    await Response.BodyWriter.WriteAsync(buffer.AsMemory(0, read));
+                    using var stream = epub.GetItemStreamByID(item.ID);
+                    var result = File(stream, item.MediaType);
+                    await this.ExecuteResultAsync(result);
                 }
             }
             finally
@@ -124,8 +117,7 @@ public class BookController : ControllerBase
         }
         catch (FileNotFoundException)
         {
-            Response.StatusCode = 404;
-            return;
+            await this.ExecuteResultAsync(NotFound(s_bookNotFound));
         }
     }
 }

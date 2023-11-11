@@ -1,5 +1,6 @@
 ﻿using Liberex.Models;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace Liberex.Controllers.V1;
 
@@ -15,13 +16,13 @@ public class OSController : ControllerBase
     }
 
     [HttpGet("[action]")]
-    public ActionResult<MessageModel<string[]>> Files(string path)
+    public ActionResult<MessageModel<string[]>> Files([Required] string path)
     {
         return MessageHelp.Success(Directory.GetFiles(path));
     }
 
     [HttpGet("[action]")]
-    public ActionResult<MessageModel<string[]>> Directories(string path)
+    public ActionResult<MessageModel<string[]>> Directories([Required] string path)
     {
         return MessageHelp.Success(Directory.GetDirectories(path));
     }
@@ -29,7 +30,7 @@ public class OSController : ControllerBase
     public record FileEntry(string Path, bool IsDirectory);
 
     [HttpGet("[action]")]
-    public ActionResult<MessageModel<FileEntry[]>> List(string path)
+    public ActionResult<MessageModel<FileEntry[]>> List([Required] string path)
     {
         var list = new List<FileEntry>();
         foreach (var file in Directory.GetFiles(path)) list.Add(new FileEntry(file, false));
