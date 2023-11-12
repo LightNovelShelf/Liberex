@@ -57,7 +57,7 @@ public class BookController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<MessageModel<Book>>> IndexAsync(string id)
+    public async Task<ActionResult<MessageModel<Book>>> GetAsync(string id)
     {
         var book = await _libraryService.Books.SingleOrDefaultAsync(x => x.Id == id);
         if (book == null) return NotFound(s_bookNotFound);

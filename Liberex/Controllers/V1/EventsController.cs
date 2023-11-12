@@ -48,7 +48,7 @@ public class EventsController : ControllerBase
         }
     }
 
-    private async Task CreateJsonMessage(string eventType, LibraryChangeData data, CancellationToken cancellationToken)
+    private async Task CreateJsonMessage(string eventType, object data, CancellationToken cancellationToken)
     {
         try
         {
