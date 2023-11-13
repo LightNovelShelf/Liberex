@@ -28,6 +28,18 @@ builder.Services.AddResponseCompression(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("CorsPolicy", options => options.SetIsOriginAllowed(x => _ = true)
+            //.SetIsOriginAllowedToAllowWildcardSubdomains()
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials()
+            .SetPreflightMaxAge(TimeSpan.FromHours(1))
+            .WithExposedHeaders("Content-Disposition"));
+});
+
 var dataDirectory = builder.Configuration["DataDirectory"] ?? "./";
 if (!Directory.Exists(dataDirectory)) Directory.CreateDirectory(dataDirectory);
 
@@ -59,6 +71,8 @@ builder.Services.AddSingleton<FileMonitorService>();
 builder.Services.AddHostedService<FileMonitorHostService>();
 
 var app = builder.Build();
+
+app.UseCors("CorsPolicy");
 
 app.UseResponseCompression();
 
