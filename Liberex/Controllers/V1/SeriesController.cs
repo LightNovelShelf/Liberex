@@ -1,5 +1,6 @@
 ﻿using Liberex.Models;
 using Liberex.Models.Context;
+using Liberex.Models.Subject;
 using Liberex.Providers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -57,7 +58,7 @@ public class SeriesController : ControllerBase
     {
         var series = await _libraryService.Series.SingleOrDefaultAsync(x => x.Id == id);
         if (series == null) return NotFound(s_seriesNotFound);
-        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(series.LibraryId, null, WatcherChangeTypes.Changed, series.FullPath));
+        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeArgs(series.LibraryId, null, WatcherChangeTypes.Changed, series.FullPath));
         return MessageHelp.Success();
     }
 }

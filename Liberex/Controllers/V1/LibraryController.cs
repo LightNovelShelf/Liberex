@@ -1,5 +1,6 @@
 ﻿using Liberex.Models;
 using Liberex.Models.Context;
+using Liberex.Models.Subject;
 using Liberex.Providers;
 using Liberex.Utils;
 using Microsoft.AspNetCore.Mvc;
@@ -78,7 +79,7 @@ public class LibraryController : ControllerBase
     {
         var library = await _context.Librarys.SingleOrDefaultAsync(x => x.Id == id);
         if (library == null) return NotFound(s_libraryNotFound);
-        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(library, WatcherChangeTypes.Changed, library.FullPath));
+        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeArgs(library, WatcherChangeTypes.Changed, library.FullPath));
         return MessageHelp.Success();
     }
 
@@ -99,7 +100,7 @@ public class LibraryController : ControllerBase
         await _context.Librarys.AddAsync(library);
         await _context.SaveChangesAsync();
         _fileMonitorService.WatchLibrary(library.Id, library.FullPath);
-        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeData(library, WatcherChangeTypes.Created, library.FullPath));
+        _fileMonitorService.FileChangeSubject.OnNext(new FileChangeArgs(library, WatcherChangeTypes.Created, library.FullPath));
         return MessageHelp.Success(library);
     }
 

@@ -45,7 +45,7 @@ if (!Directory.Exists(dataDirectory)) Directory.CreateDirectory(dataDirectory);
 
 var settingPath = Path.Combine(dataDirectory, "setting.json");
 if (!File.Exists(settingPath)) File.WriteAllText(settingPath, "{}");
-builder.Configuration.AddJsonFile(settingPath, optional: true, reloadOnChange: true);
+builder.Configuration.AddJsonFile(settingPath, true, true);
 builder.Services.AddDbContext<LiberexContext>(options =>
 {
     options.UseSqlite($"DataSource={Path.Combine(dataDirectory, "database.db")}").UseSnakeCaseNamingConvention();
@@ -69,6 +69,9 @@ builder.Services.AddMemoryCache();
 // 文件监控服务
 builder.Services.AddSingleton<FileMonitorService>();
 builder.Services.AddHostedService<FileMonitorHostService>();
+// 后台任务队列
+builder.Services.AddSingleton<PriorityTaskQueue>();
+builder.Services.AddHostedService<QueuedHostedService>();
 
 var app = builder.Build();
 

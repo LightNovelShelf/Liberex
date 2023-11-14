@@ -30,6 +30,11 @@ public class LibraryService
         await _context.Database.EnsureCreatedAsync(cancellationToken);
     }
 
+    public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     #region Library
 
     public IQueryable<Library> Librarys => _context.Librarys;
@@ -94,24 +99,18 @@ public class LibraryService
 
     public async ValueTask SetSeriesDeleteByIdAsync(string id, CancellationToken cancellationToken = default)
     {
-        await _context.Series.Where(x => x.Id == id).ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
-        await _context.Books.Where(x => x.SeriesId == id).ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
+        await SetSeriesDeleteByIdsAsync(new string[] { id }, cancellationToken);
     }
 
     public async ValueTask SetSeriesDeleteByIdsAsync(IEnumerable<string> ids, CancellationToken cancellationToken = default)
     {
         if (ids.Any() == false) return;
-        await _context.Series.Where(x => ids.Contains(x.Id)).ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
-        await _context.Books.Where(x => ids.Contains(x.SeriesId)).ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
-    }
-
-    public async ValueTask SetSeriesDeleteByPathAsync(string path, CancellationToken cancellationToken = default)
-    {
-        var id = await _context.Series
-            .Where(x => x.FullPath == path)
-            .Select(x => x.Id)
-            .SingleOrDefaultAsync(cancellationToken) ?? throw new Exception("no this series");
-        await SetSeriesDeleteByIdAsync(id, cancellationToken);
+        await _context.Series
+            .Where(x => ids.Contains(x.Id))
+            .ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true).SetProperty(x => x.LastUpdateTime, DateTime.Now), cancellationToken);
+        await _context.Books
+            .Where(x => ids.Contains(x.SeriesId))
+            .ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, true), cancellationToken);
     }
 
     #endregion
@@ -135,6 +134,8 @@ public class LibraryService
 
         if (book.Hash != hash)
         {
+            book.Cover ??= await _context.BookCovers.SingleOrDefaultAsync(x => x.BookId == book.Id, cancellationToken);
+
             book.IsDelete = false;
             book.Hash = hash;
             book.ModifyTime = fileInfo.LastWriteTime;
@@ -174,7 +175,7 @@ public class LibraryService
         return false;
     }
 
-    public async ValueTask<Book> AddBookAsync(string fullPath, Series series, CancellationToken cancellationToken = default)
+    public async ValueTask<Book> AddBookAsync(string fullPath, string seriesId, bool updateSeries = true, CancellationToken cancellationToken = default)
     {
         var fileInfo = new FileInfo(fullPath);
         var book = new Book
@@ -182,40 +183,38 @@ public class LibraryService
             Id = CorrelationIdGenerator.GetNextId(),
             FullPath = fullPath,
 
-            Series = series,
+            Cover = new(),
+            SeriesId = seriesId,
         };
 
         await UpdateBookAsync(book, fileInfo, cancellationToken);
         await _context.Books.AddAsync(book, cancellationToken);
-        series.LastUpdateTime = DateTime.Now;
+        if (updateSeries)
+        {
+            await _context.Series
+                .Where(x => x.Id == seriesId)
+                .ExecuteUpdateAsync(x => x.SetProperty(x => x.LastUpdateTime, DateTime.Now), cancellationToken);
+        }
         await _context.SaveChangesAsync(cancellationToken);
+
         return book;
     }
 
-    /// <summary>
-    /// 返回非空代表有更新
-    /// </summary>
-    /// <param name="fullPath"></param>
-    /// <param name="series"></param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    public async ValueTask<Book> UpdateBookAsync(string fullPath, Series series, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> UpdateBookAsync(Book book, bool updateSeries = true, CancellationToken cancellationToken = default)
     {
-        var fileInfo = new FileInfo(fullPath);
-        var bookQuery = _context.Books.Where(x => x.FullPath == fullPath);
-        await bookQuery.ExecuteUpdateAsync(x => x.SetProperty(x => x.IsDelete, false), cancellationToken);
+        var fileInfo = new FileInfo(book.FullPath);
+        if (book.ModifyTime == fileInfo.LastWriteTime && book.FileSize == fileInfo.Length) return false;
 
-        if (await bookQuery.AnyAsync(x => x.ModifyTime != fileInfo.LastWriteTime || x.FileSize != fileInfo.Length, cancellationToken))
+        var hasUpdate = await UpdateBookAsync(book, fileInfo, cancellationToken);
+        if (updateSeries)
         {
-            var book = await bookQuery.Include(x => x.Cover).SingleAsync(cancellationToken);
-            if (await UpdateBookAsync(book, fileInfo, cancellationToken))
-            {
-                series.LastUpdateTime = DateTime.Now;
-                await _context.SaveChangesAsync(cancellationToken);
-                return book;
-            }
+            await _context.Series
+                .Where(x => x.Id == book.SeriesId)
+                .ExecuteUpdateAsync(x => x.SetProperty(x => x.LastUpdateTime, DateTime.Now), cancellationToken);
         }
-        return null;
+        if (hasUpdate) await _context.SaveChangesAsync(cancellationToken);
+
+        return hasUpdate;
     }
 
     public async ValueTask SetBookDeleteByIdAsync(string id, CancellationToken cancellationToken = default)
