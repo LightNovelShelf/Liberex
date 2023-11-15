@@ -24,8 +24,8 @@ public class EventsController : ControllerBase
     private void SetServerSentEventHeaders()
     {
         Response.StatusCode = 200;
-        Response.Headers.Add("Content-Type", "text/event-stream");
-        Response.Headers.Add("Connection", "keep-alive");
+        Response.Headers.Append("Content-Type", "text/event-stream");
+        Response.Headers.Append("Connection", "keep-alive");
     }
 
     private async Task WriteHeader(string eventType, CancellationToken cancellationToken)

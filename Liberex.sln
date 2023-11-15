@@ -5,11 +5,16 @@ VisualStudioVersion = 17.4.33213.308
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Liberex", "Liberex\Liberex.csproj", "{964DCD39-49E9-45DA-A7F3-2AC60D432804}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Test", "Test\Test.csproj", "{E33E18A1-098B-4B3A-9E60-7C4381847240}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Test", "Test\Test.csproj", "{E33E18A1-098B-4B3A-9E60-7C4381847240}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Blurhash.ImageSharp", "Blurhash.ImageSharp\Blurhash.ImageSharp.csproj", "{FCCDA587-ACAE-419A-BA28-C82765876B41}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blurhash.ImageSharp", "Blurhash.ImageSharp\Blurhash.ImageSharp.csproj", "{FCCDA587-ACAE-419A-BA28-C82765876B41}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Blurhash.Core", "Blurhash.Core\Blurhash.Core.csproj", "{FA224BC4-23D6-4E05-A502-82A0D8D6D258}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Blurhash.Core", "Blurhash.Core\Blurhash.Core.csproj", "{FA224BC4-23D6-4E05-A502-82A0D8D6D258}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{0545F0B9-CF3E-43A0-A34C-88BB93362019}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

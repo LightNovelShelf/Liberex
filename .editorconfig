@@ -1,0 +1,4 @@
+﻿[*.cs]
+
+# ASP0023: Route conflict detected between controller actions
+dotnet_diagnostic.ASP0023.severity = none
