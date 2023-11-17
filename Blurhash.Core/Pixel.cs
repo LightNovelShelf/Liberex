@@ -5,11 +5,11 @@
     /// </summary>
     public struct Pixel
     {
-        public double Red;
-        public double Green;
-        public double Blue;
+        public float Red;
+        public float Green;
+        public float Blue;
 
-        public Pixel(double red, double green, double blue)
+        public Pixel(float red, float green, float blue)
         {
             Red = red;
             Green = green;

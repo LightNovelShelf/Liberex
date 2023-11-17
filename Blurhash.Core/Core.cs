@@ -1,5 +1,9 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Numerics;
+using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
+using System.Runtime.Intrinsics.X86;
 
 namespace Blurhash
 {
@@ -13,7 +17,7 @@ namespace Blurhash
         /// <param name="componentsY">The number of components used on the Y-Axis for the DCT</param>
         /// <param name="progressCallback">An optional progress handler to receive progress updates</param>
         /// <returns>The resulting Blurhash string</returns>
-        public static string Encode(Pixel[,] pixels, int componentsX, int componentsY, IProgress<int> progressCallback = null)
+        public static string Encode(Pixel[,] pixels, int componentsX, int componentsY)
         {
             if (componentsX < 1) throw new ArgumentException("componentsX needs to be at least 1");
             if (componentsX > 9) throw new ArgumentException("componentsX needs to be at most 9");
@@ -24,28 +28,27 @@ namespace Blurhash
             Span<char> resultBuffer = stackalloc char[4 + 2 * componentsX * componentsY];
 
             var factorCount = componentsX * componentsY;
-            var processedFactors = 0;
 
             var width = pixels.GetLength(0);
             var height = pixels.GetLength(1);
 
-            var xCosines = new double[width];
-            var yCosines = new double[height];
+            var xCosines = new float[width];
+            var yCosines = new float[height];
 
             for (var yComponent = 0; yComponent < componentsY; yComponent++)
                 for (var xComponent = 0; xComponent < componentsX; xComponent++)
                 {
-                    double r = 0, g = 0, b = 0;
-                    double normalization = (xComponent == 0 && yComponent == 0) ? 1 : 2;
+                    float r = 0, g = 0, b = 0;
+                    float normalization = (xComponent == 0 && yComponent == 0) ? 1 : 2;
 
                     for (var xPixel = 0; xPixel < width; xPixel++)
                     {
-                        xCosines[xPixel] = Math.Cos(Math.PI * xComponent * xPixel / width);
+                        xCosines[xPixel] = MathF.Cos(MathF.PI * xComponent * xPixel / width);
                     }
 
                     for (var yPixel = 0; yPixel < height; yPixel++)
                     {
-                        yCosines[yPixel] = Math.Cos(Math.PI * yComponent * yPixel / height);
+                        yCosines[yPixel] = MathF.Cos(MathF.PI * yComponent * yPixel / height);
                     }
 
                     for (var xPixel = 0; xPixel < width; xPixel++)
@@ -62,9 +65,6 @@ namespace Blurhash
                     factors[componentsX * yComponent + xComponent].Red = r * scale;
                     factors[componentsX * yComponent + xComponent].Green = g * scale;
                     factors[componentsX * yComponent + xComponent].Blue = b * scale;
-
-                    progressCallback?.Report(processedFactors * 100 / factorCount);
-                    processedFactors++;
                 }
 
             var dc = factors[0];
@@ -77,20 +77,9 @@ namespace Blurhash
             if (acCount > 0)
             {
                 // Get maximum absolute value of all AC components
-                var actualMaximumValue = 0.0;
-                for (var yComponent = 0; yComponent < componentsY; yComponent++)
-                    for (var xComponent = 0; xComponent < componentsX; xComponent++)
-                    {
-                        // Ignore DC component
-                        if (xComponent == 0 && yComponent == 0) continue;
-
-                        var factorIndex = componentsX * yComponent + xComponent;
-
-                        actualMaximumValue = Math.Max(Math.Abs(factors[factorIndex].Red), actualMaximumValue);
-                        actualMaximumValue = Math.Max(Math.Abs(factors[factorIndex].Green), actualMaximumValue);
-                        actualMaximumValue = Math.Max(Math.Abs(factors[factorIndex].Blue), actualMaximumValue);
-                    }
-
+                // ignore DC component
+                Span<float> floats = MemoryMarshal.Cast<byte, float>(MemoryMarshal.AsBytes(factors[1..]));
+                var actualMaximumValue = ((ReadOnlySpan<float>)floats).AbsMax();
                 var quantizedMaximumValue = (int)Math.Max(0.0, Math.Min(82.0, Math.Floor(actualMaximumValue * 166 - 0.5)));
                 maximumValue = ((float)quantizedMaximumValue + 1) / 166;
                 quantizedMaximumValue.EncodeBase83(resultBuffer.Slice(1, 1));
@@ -111,7 +100,8 @@ namespace Blurhash
 
                     var factorIndex = componentsX * yComponent + xComponent;
 
-                    EncodeAc(factors[factorIndex].Red, factors[factorIndex].Green, factors[factorIndex].Blue, maximumValue).EncodeBase83(resultBuffer.Slice(6 + (factorIndex - 1) * 2, 2));
+                    EncodeAc(factors[factorIndex].Red, factors[factorIndex].Green, factors[factorIndex].Blue, maximumValue)
+                        .EncodeBase83(resultBuffer.Slice(6 + (factorIndex - 1) * 2, 2));
                 }
 
             return resultBuffer.ToString();
@@ -128,7 +118,7 @@ namespace Blurhash
         /// <param name="punch">A value that affects the contrast of the decoded image. 1 means normal, smaller values will make the effect more subtle, and larger values will make it stronger.</param>
         /// <param name="progressCallback">An optional progress handler to receive progress updates</param>
         /// <returns>A 2-dimensional array of <see cref="Pixel"/>s </returns>
-        public static void Decode(string blurhash, Pixel[,] pixels, double punch = 1.0, IProgress<int> progressCallback = null)
+        public static void Decode(string blurhash, Pixel[,] pixels, float punch = 1.0f, IProgress<int> progressCallback = null)
         {
             if (blurhash.Length < 6)
             {
@@ -151,8 +141,8 @@ namespace Blurhash
                 throw new ArgumentException("Blurhash value is missing data", nameof(blurhash));
             }
 
-            var quantizedMaximumValue = (double)blurhashSpan.Slice(1, 1).DecodeBase83();
-            var maximumValue = (quantizedMaximumValue + 1.0) / 166.0;
+            var quantizedMaximumValue = (float)blurhashSpan.Slice(1, 1).DecodeBase83();
+            var maximumValue = (quantizedMaximumValue + 1.0f) / 166.0f;
 
             var coefficients = new Pixel[componentsX, componentsY];
 
@@ -179,13 +169,13 @@ namespace Blurhash
                 {
                     ref var result = ref pixels[xPixel, yPixel];
 
-                    result.Red = 0.0;
-                    result.Green = 0.0;
-                    result.Blue = 0.0;
+                    result.Red = 0.0f;
+                    result.Green = 0.0f;
+                    result.Blue = 0.0f;
                 }
 
-            var xCosines = new double[outputWidth];
-            var yCosines = new double[outputHeight];
+            var xCosines = new float[outputWidth];
+            var yCosines = new float[outputHeight];
 
             componentIndex = 1;
             for (var componentX = 0; componentX < componentsX; componentX++)
@@ -193,12 +183,12 @@ namespace Blurhash
                 {
                     for (var xPixel = 0; xPixel < outputWidth; xPixel++)
                     {
-                        xCosines[xPixel] = Math.Cos((Math.PI * xPixel * componentX) / outputWidth);
+                        xCosines[xPixel] = MathF.Cos((MathF.PI * xPixel * componentX) / outputWidth);
                     }
 
                     for (var yPixel = 0; yPixel < outputHeight; yPixel++)
                     {
-                        yCosines[yPixel] = Math.Cos((Math.PI * yPixel * componentY) / outputHeight);
+                        yCosines[yPixel] = MathF.Cos((MathF.PI * yPixel * componentY) / outputHeight);
                     }
 
                     var coefficient = coefficients[componentX, componentY];
@@ -220,16 +210,16 @@ namespace Blurhash
                 }
         }
 
-        private static int EncodeAc(double r, double g, double b, double maximumValue)
+        private static int EncodeAc(float r, float g, float b, float maximumValue)
         {
-            var quantizedR = (int)Math.Max(0, Math.Min(18, Math.Floor(MathUtils.SignPow(r / maximumValue, 0.5) * 9 + 9.5)));
-            var quantizedG = (int)Math.Max(0, Math.Min(18, Math.Floor(MathUtils.SignPow(g / maximumValue, 0.5) * 9 + 9.5)));
-            var quantizedB = (int)Math.Max(0, Math.Min(18, Math.Floor(MathUtils.SignPow(b / maximumValue, 0.5) * 9 + 9.5)));
+            var quantizedR = (int)Math.Max(0, Math.Min(18, Math.Floor(MathUtils.SignPow(r / maximumValue, 0.5f) * 9 + 9.5)));
+            var quantizedG = (int)Math.Max(0, Math.Min(18, Math.Floor(MathUtils.SignPow(g / maximumValue, 0.5f) * 9 + 9.5)));
+            var quantizedB = (int)Math.Max(0, Math.Min(18, Math.Floor(MathUtils.SignPow(b / maximumValue, 0.5f) * 9 + 9.5)));
 
             return quantizedR * 19 * 19 + quantizedG * 19 + quantizedB;
         }
 
-        private static int EncodeDc(double r, double g, double b)
+        private static int EncodeDc(float r, float g, float b)
         {
             var roundedR = MathUtils.LinearTosRgb(r);
             var roundedG = MathUtils.LinearTosRgb(g);
@@ -245,16 +235,16 @@ namespace Blurhash
             return new Pixel(MathUtils.SRgbToLinear(intR), MathUtils.SRgbToLinear(intG), MathUtils.SRgbToLinear(intB));
         }
 
-        private static Pixel DecodeAc(BigInteger value, double maximumValue)
+        private static Pixel DecodeAc(BigInteger value, float maximumValue)
         {
-            var quantizedR = (double)(value / (19 * 19));
-            var quantizedG = (double)((value / 19) % 19);
-            var quantizedB = (double)(value % 19);
+            var quantizedR = (float)(value / (19 * 19));
+            var quantizedG = (float)((value / 19) % 19);
+            var quantizedB = (float)(value % 19);
 
             var result = new Pixel(
-                MathUtils.SignPow((quantizedR - 9.0) / 9.0, 2.0) * maximumValue,
-                MathUtils.SignPow((quantizedG - 9.0) / 9.0, 2.0) * maximumValue,
-                MathUtils.SignPow((quantizedB - 9.0) / 9.0, 2.0) * maximumValue
+                MathUtils.SignPow((quantizedR - 9.0f) / 9.0f, 2.0f) * maximumValue,
+                MathUtils.SignPow((quantizedG - 9.0f) / 9.0f, 2.0f) * maximumValue,
+                MathUtils.SignPow((quantizedB - 9.0f) / 9.0f, 2.0f) * maximumValue
             );
 
             return result;

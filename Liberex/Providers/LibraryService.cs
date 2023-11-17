@@ -2,13 +2,8 @@
 using Liberex.Models.Context;
 using Liberex.Utils;
 using Microsoft.EntityFrameworkCore;
-using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
-using System.Diagnostics;
-using System.IO;
-using System.Threading;
 using Wuyu.Epub;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace Liberex.Providers;
 
@@ -156,7 +151,7 @@ public class LibraryService
                 book.Cover.Height = image.Height;
                 book.Cover.Width = image.Width;
                 // 有点耗性能。。。
-                // book.Cover.Placeholder = Blurhasher.Encode(image, 2, 3);
+                book.Cover.Placeholder = Blurhasher.Encode(image, 2, 3);
 
                 // Resize image to 300 height
                 using var stream = new MemoryStream();

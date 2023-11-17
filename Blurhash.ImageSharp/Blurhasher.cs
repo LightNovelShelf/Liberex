@@ -27,7 +27,7 @@ namespace Blurhash.ImageSharp
         /// <param name="outputHeight">The desired height of the output in pixels</param>
         /// <param name="punch">A value that affects the contrast of the decoded image. 1 means normal, smaller values will make the effect more subtle, and larger values will make it stronger.</param>
         /// <returns>The decoded preview</returns>
-        public static Image<Rgb24> Decode(string blurhash, int outputWidth, int outputHeight, double punch = 1.0)
+        public static Image<Rgb24> Decode(string blurhash, int outputWidth, int outputHeight, float punch = 1.0f)
         {
             var pixelData = new Pixel[outputWidth, outputHeight];
             Core.Decode(blurhash, pixelData, punch);
