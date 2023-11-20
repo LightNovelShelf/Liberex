@@ -120,6 +120,12 @@ public class LibraryService
         return cover?.Thumbnail;
     }
 
+    public async ValueTask<byte[]> GetBookCoverAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var cover = await _context.BookCovers.SingleOrDefaultAsync(x => x.BookId == id, cancellationToken);
+        return cover?.Data;
+    }
+
     private async Task<bool> UpdateBookAsync(Book book, FileInfo fileInfo, CancellationToken cancellationToken = default)
     {
         using var fileStream = new FileStream(book.FullPath, FileMode.Open, FileAccess.Read, FileShare.Read);

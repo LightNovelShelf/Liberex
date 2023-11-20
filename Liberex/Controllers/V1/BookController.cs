@@ -87,6 +87,15 @@ public class BookController : ControllerBase
         return File(data, "image/jpeg");
     }
 
+    [HttpGet("{id}/[action]")]
+    public async Task<ActionResult> CoverAsync(string id)
+    {
+        var data = await _libraryService.GetBookCoverAsync(id);
+        if (data == null) return NotFound(s_bookNotFound);
+        // ÎÞÄÔ jepg
+        return File(data, "image/jpeg");
+    }
+
     [HttpGet("{id}/[action]/{**path}")]
     public async Task ItemAsync(string id, string path)
     {
