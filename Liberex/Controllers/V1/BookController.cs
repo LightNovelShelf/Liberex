@@ -96,6 +96,34 @@ public class BookController : ControllerBase
         return File(data, "image/jpeg");
     }
 
+    [HttpGet("{id}/[action]")]
+    public async Task<ActionResult> NcxAsync(string id)
+    {
+        try
+        {
+            var (epub, _) = await GetEpubAsync(id);
+            return Ok(MessageHelp.Success(epub.Ncx));
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound(s_bookNotFound);
+        }
+    }
+
+    [HttpGet("{id}/[action]")]
+    public async Task<ActionResult> NavAsync(string id)
+    {
+        try
+        {
+            var (epub, _) = await GetEpubAsync(id);
+            return Ok(MessageHelp.Success(epub.Nav));
+        }
+        catch (FileNotFoundException)
+        {
+            return NotFound(s_bookNotFound);
+        }
+    }
+
     [HttpGet("{id}/[action]/{**path}")]
     public async Task ItemAsync(string id, string path)
     {
@@ -107,6 +135,7 @@ public class BookController : ControllerBase
             try
             {
                 var item = epub.Package.Manifest.SingleOrDefault(x => x.Href == path);
+                var entry = epub.GetItemEntryByHref(path);
                 if (item == null)
                 {
                     var result = NotFound(MessageHelp.Error("Item not found", 404));

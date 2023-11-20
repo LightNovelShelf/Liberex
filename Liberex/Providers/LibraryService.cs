@@ -144,6 +144,7 @@ public class LibraryService
             book.Title = epub.Title;
             book.Author = epub.Author;
             book.Opf = epub.Opf;
+            book.Version = epub.Version;
 
             var data = await epub.GetItemDataByIDAsync(epub.Cover)
                 ?? await epub.GetItemDataByIDAsync("cover")

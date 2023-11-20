@@ -22,6 +22,7 @@ public class Book
     public string Author { get; set; }
     public string Summary { get; set; }
     public string Opf { get; set; }
+    public string Version { get; set; }
 
     public virtual Series Series { get; set; }
     public virtual BookCover Cover { get; set; }
